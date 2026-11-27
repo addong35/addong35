@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>원자재 관리</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; overflow-x: hidden; max-width: 100vw; }
+header { background: #1a56db; color: white; padding: 16px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+header h1 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.sw { display: flex; gap: 8px; }
+.sw input { flex:1; padding:10px 8px; border:none; border-radius:8px; font-size:13px; outline:none; min-width:0; }
+.sw select { padding:10px 8px; border:none; border-radius:8px; font-size:14px; outline:none; background:white; color:#333; }
+.sortw { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.sb { padding:5px 12px; border:1.5px solid rgba(255,255,255,.5); border-radius:20px; background:transparent; color:white; font-size:12px; cursor:pointer; white-space:nowrap; position:relative; }
+.sb.active { background:white; color:#1a56db; border-color:white; font-weight:700; }
+.sb .badge { position:absolute; top:-6px; right:-6px; background:#e53e3e; color:white; border-radius:50%; width:16px; height:16px; font-size:10px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+.stats { padding:10px 16px; font-size:13px; color:#666; background:white; border-bottom:1px solid #e0e0e0; }
+.list { padding:12px; display:flex; flex-direction:column; gap:10px; }
+.card { background:white; border-radius:12px; padding:14px 16px; box-shadow:0 1px 4px rgba(0,0,0,.08); cursor:pointer; }
+.ctbl { overflow-x:auto; margin-top:8px; }
+.ch { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.cno { font-size:11px; color:#999; flex-shrink:0; margin-top:2px; }
+.cp { font-size:16px; font-weight:700; color:#1a56db; flex:1; }
+.cprice { font-size:13px; font-weight:700; color:#e53e3e; flex-shrink:0; }
+.csup { font-size:15px; color:#555; margin-top:4px; }
+.cspec { font-size:14px; color:#888; margin-top:3px; }
+.ctags { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+.tag { font-size:11px; padding:2px 8px; border-radius:20px; background:#e8f0ff; color:#1a56db; }
+.ov { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:flex-end; }
+.ov.open { display:flex; }
+.modal { background:white; width:100%; max-height:85vh; border-radius:20px 20px 0 0; overflow-y:auto; padding:20px; }
+.mh { width:40px; height:4px; background:#ddd; border-radius:2px; margin:0 auto 16px; }
+.modal h2 { font-size:18px; font-weight:700; color:#1a56db; margin-bottom:4px; }
+.mspec { font-size:13px; color:#888; margin-bottom:8px; }
+.mprice { font-size:16px; font-weight:700; color:#e53e3e; margin-bottom:16px; }
+.it { width:100%; border-collapse:collapse; }
+.it tr { border-bottom:1px solid #f0f0f0; }
+.it td { padding:10px 4px; font-size:14px; vertical-align:top; }
+.it td:first-child { color:#999; font-size:12px; width:80px; white-space:nowrap; }
+.ft { border-collapse:collapse; margin-top:12px; width:100%; }
+.ft th,.ft td { padding:6px 8px; text-align:center; font-size:13px; border:1px solid #e0e0e0; word-break:break-all; }
+.ft th { background:#1a56db; color:white; }
+.ft tr:nth-child(even) td { background:#f8f9ff; }
+.stitle { font-size:13px; font-weight:700; color:#555; margin:16px 0 8px; }
+.cbtn { display:block; width:100%; margin-top:20px; padding:14px; background:#1a56db; color:white; border:none; border-radius:10px; font-size:16px; cursor:pointer; }
+.nr { text-align:center; padding:60px 20px; color:#aaa; font-size:15px; }
+.pl { color:#1a56db; text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 원자재 관리</h1>
+  <div class="sw">
+    <input type="search" id="si" placeholder="품명·규격" oninput="render()" style="flex:1;min-width:0">
+    <input type="search" id="su" placeholder="용도" oninput="render()" style="flex:1;min-width:0">
+    <select id="sf" onchange="render()" style="flex:1;min-width:0;padding:10px 4px;font-size:12px">
+      <option value="">공급사</option>
+    </select>
+  </div>
+  <div class="sortw">
+    <button class="sb active" data-field="none" onclick="toggleSort(this)">기본순</button>
+    <button class="sb" data-field="iy" data-dir="" data-label="이형력순" onclick="toggleSort(this)">이형력순</button>
+    <button class="sb" data-field="ja" data-dir="" data-label="점착력순" onclick="toggleSort(this)">점착력순</button>
+    <button class="sb" data-field="je" data-dir="" data-label="접착력순" onclick="toggleSort(this)">접착력순</button>
+    <button class="sb" data-field="price" data-dir="" data-label="㎡가격순" onclick="toggleSort(this)">㎡가격순</button>
+  </div>
+</header>
+<div class="stats" id="stats"></div>
+<div class="list" id="list"></div>
+<div class="ov" id="ov" onclick="closeOv(event)">
+  <div class="modal">
+    <div class="mh"></div>
+    <div id="mc"></div>
+    <button class="cbtn" onclick="document.getElementById('ov').classList.remove('open')">닫기</button>
+  </div>
+</div>
+<script>
+const allData = [{"no": "1", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "P75(1T)250GB(III)", "spec": "w1080×1000m×0.075t", "price": "", "sqm_price": "", "iy_spec": "82 ±25", "iy_avg": "91~92", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "SHEET WHITE / GUIDE RAIL 국내용 필름 교체용 Φ230 / Φ120 / Φ160 / 730×4×1.15t / 800×3×1.15t / 800×4×1.15t / 1020×5×1.15t / 820×5×1.15t", "note": ""}, {"no": "2", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "P100(1T)20CA", "spec": "w1080×500m×0.1t", "price": "", "sqm_price": "", "iy_spec": "7 ±3", "iy_avg": "7~8", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "3", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "P100(1SM)20CB", "spec": "w1080×1000m×0.1t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "4", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "생PET(투명)", "spec": "w520×1000m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "ReinforceTape 374× 9×0.075t / GUIDE RAIL 국내용 Φ250 / 알피이(릴타입 글루테이프)", "note": ""}, {"no": "5", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "생PET(불투명)", "spec": "w520×1000m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "ReinforceTape 374× 4×0.075t", "note": ""}, {"no": "6", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "P75(1SM)50CA", "spec": "w1080×1000m×0.075t", "price": "", "sqm_price": "", "iy_spec": "15 ±9", "iy_avg": "14~15", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "VENT PROTECTING FILM_상신EDP 35.7×21.7×0.15t / 멤브레인_싱싱캔 Φ6×Φ10×0.25t", "note": ""}, {"no": "7", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "P75(1T)180CA", "spec": "w1080×1000m×0.075t", "price": "", "sqm_price": "", "iy_spec": "47 ±15", "iy_avg": "52~53", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "8", "supplier": "㈜이큐온", "contact_name": "김형태 부장님", "contact_phone": "010-3357-2842", "product": "P50(1SM)10HJ(Ⅱ)", "spec": "w1080×1000m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "2.2", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "아진전자 Φ6×Φ12", "note": ""}, {"no": "9", "supplier": "㈜아르케", "contact_name": "유민식 차장님", "contact_phone": "010-6260-4763", "product": "PET90", "spec": "w1240×100m×0.09t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "1800", "usage": "JPTNS-PE합지품", "note": ""}, {"no": "10", "supplier": "㈜국제라텍", "contact_name": "안정훈 님", "contact_phone": "010-5550-5982", "product": "RS75C-03-P", "spec": "w1020×100×0.08t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "3 ±2", "ja_avg": "2.4", "je_spec": "", "je_avg": "", "usage": "멤브레인 니프코코리아 Φ13 / 멤브레인 로우템 Φ17", "note": ""}, {"no": "11", "supplier": "㈜국제라텍", "contact_name": "안정훈 님", "contact_phone": "010-5550-5982", "product": "KJ-5225 BBS-40", "spec": "w1020×200m×0.052t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "1,000g 이상", "je_avg": "1991", "usage": "", "note": ""}, {"no": "12", "supplier": "㈜국제라텍", "contact_name": "안정훈 님", "contact_phone": "010-5550-5982", "product": "RS75C-01-P", "spec": "w1020×200m×0.08t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "1 ±2", "ja_avg": "2", "je_spec": "", "je_avg": "", "usage": "PCB PI TAPE", "note": ""}, {"no": "13", "supplier": "㈜국제라텍", "contact_name": "안정훈 님", "contact_phone": "010-5550-5982", "product": "라미50", "spec": "w505×500m×0.062t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "250g 이상", "ja_avg": "548", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "14", "supplier": "㈜연우", "contact_name": "최형우 과장님", "contact_phone": "010-4001-8011", "product": "A03TA", "spec": "w1060×500m×0.058t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 6 ±4", "ja_avg": "7", "je_spec": "", "je_avg": "", "usage": "멤브레인 Φ8.85 / 아진전자 Φ6×Φ12", "note": ""}, {"no": "15", "supplier": "㈜연우", "contact_name": "최형우 과장님", "contact_phone": "010-4001-8011", "product": "UH03", "spec": "w1060×100m×0.047t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[PET] 700 ±250", "ja_avg": "703", "je_spec": "", "je_avg": "", "usage": "PROTEECT FILM_신안정밀 37.5×97.6×0.15t", "note": ""}, {"no": "16", "supplier": "㈜연우", "contact_name": "최형우 과장님", "contact_phone": "010-4001-8011", "product": "S03A", "spec": "w1060×100m×0.052t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[PET] 58 ±32", "ja_avg": "61", "je_spec": "", "je_avg": "", "usage": "주사기필터 Φ6.55 / JIG BEAD HOLES_한솔아이원스 Φ22×Φ12.4×1.0t 외", "note": ""}, {"no": "17", "supplier": "㈜연우", "contact_name": "최형우 과장님", "contact_phone": "010-4001-8011", "product": "HB07L", "spec": "w1060×200m×0.081t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[PET] 55 ±25", "ja_avg": "76", "je_spec": "", "je_avg": "", "usage": "주사기필터 (Φ2.3, Φ4.1)", "note": ""}, {"no": "18", "supplier": "㈜연우", "contact_name": "최형우 과장님", "contact_phone": "010-4001-8011", "product": "8386", "spec": "w1040×100m×0.085t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 10 ±6", "ja_avg": "5.6", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "19", "supplier": "DKL", "contact_name": "이명준 과장님", "contact_phone": "010-5426-7302", "product": "DK-T370-85", "spec": "w1080×500m×0.085t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[PET] 70 ±20", "ja_avg": "84.2", "je_spec": "", "je_avg": "", "usage": "멤브레인 Φ10.4 (SL저통기, 중통기, 초고통기. AMS중통기) / 멤브레인 Φ14 코리아아피스 /  멤브레인 Φ24 유니메딕스", "note": ""}, {"no": "20", "supplier": "더원테크", "contact_name": "조영민 사장님", "contact_phone": "010-3719-6820", "product": "BC75-20SL(10)", "spec": "w1080×2000m×0.075t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 30 ±6", "ja_avg": "29.3", "je_spec": "", "je_avg": "", "usage": "멤브레인 Φ12.5, Φ10.5, Φ5.6", "note": "품명변경 BC75-30SL(10)"}, {"no": "21", "supplier": "더원테크", "contact_name": "조영민 사장님", "contact_phone": "010-3719-6820", "product": "KR-50FL", "spec": "w1040×1000m×0.05t", "price": "", "sqm_price": "", "iy_spec": "[K-OPC] 5 ±2", "iy_avg": "5.8", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "VENT PATCH_영도산업 Φ3×Φ7, PATCH_LSAT Φ2.5×8 / TPRD PROTECTOR_유니크 (Φ13×Φ17), (Φ3.3×Φ7.6) / FILTER_모토닉 Φ5.5×Φ10", "note": ""}, {"no": "22", "supplier": "더원테크", "contact_name": "조영민 사장님", "contact_phone": "010-3719-6820", "product": "BC50-06SL", "spec": "w1080×2000m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 6 ±2", "ja_avg": "6.8", "je_spec": "", "je_avg": "", "usage": "VENT PATCH_영도산업 Φ3×Φ7 / VENT PATCH_LSAT Φ5.5×10", "note": ""}, {"no": "23", "supplier": "더원테크", "contact_name": "조영민 사장님", "contact_phone": "010-3719-6820", "product": "TOSR-203A", "spec": "w1080×520m×0.026t", "price": "", "sqm_price": "", "iy_spec": "[K-OPC] 3 ±2", "iy_avg": "3.8", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "멤브레인_싱싱캔 Φ6×Φ10×0.25t", "note": ""}, {"no": "24", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP200투", "spec": "w1200×200m×0.08t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 10 ±5", "ja_avg": "10.4", "je_spec": "", "je_avg": "", "usage": "ReinforceTape 국내용 (820×6×0.075t / 980×6×0.075t / 1010×6×0.075t / 754×8×0.075t / 715×8×0.075t / 774×8×0.075t / 890×8×0.075t / 818×8×0.075t / 846×11×0.075t / 975×11×0.075t)\n                      해외용 (374×4×0.075t / 374×9×0.075t)", "note": ""}, {"no": "25", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP201M투", "spec": "w1200×200m×0.04t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 5 ±3", "ja_avg": "5.2", "je_spec": "", "je_avg": "", "usage": "INSULATE PAPER C", "note": ""}, {"no": "26", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP223M투", "spec": "w1200×200m×0.04t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 10 ±5", "ja_avg": "11.2", "je_spec": "", "je_avg": "", "usage": "PCB PAD / INSULATE PAPER (E,F,G)", "note": ""}, {"no": "27", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP265투", "spec": "w1250×180m×0.045t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "28", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP508투", "spec": "w1200×200m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 80 ±10", "ja_avg": "80.4", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "29", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP680투", "spec": "w1200×180m×0.04t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 650 ±50", "ja_avg": "654.2", "je_spec": "", "je_avg": "", "usage": "테프론 합지품 / SHEET PAD HR H44X (도시바)", "note": "입고 등분 규격 w594 +0 -3㎜"}, {"no": "30", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP710투", "spec": "w1200×150m×0.1t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 1,000 ±100", "ja_avg": "1006", "je_spec": "", "je_avg": "", "usage": "하이모(로고)22×87", "note": ""}, {"no": "31", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP910투", "spec": "w1200×150m×0.1t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 70 ±20", "ja_avg": "68.8", "je_spec": "", "je_avg": "", "usage": "", "note": ""}, {"no": "32", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP925투", "spec": "w1200×150m×0.1t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 100 ±20", "ja_avg": "100.4", "je_spec": "", "je_avg": "", "usage": "GUIDE RAIL 1.T 용도 (Φ250 / Φ265 /  Φ243 / 1020×5×1.15t / 820×5×1.15t / 730×4×1.15t / 800×3×1.15t / 800×4×1.15t)", "note": ""}, {"no": "33", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP930투", "spec": "w1200×100m×0.15t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 200 ±30", "ja_avg": "205.8", "je_spec": "", "je_avg": "", "usage": "아진전자 Φ6×Φ12", "note": ""}, {"no": "34", "supplier": "대운산업", "contact_name": "최양희 대리님", "contact_phone": "031-355-7141", "product": "FP950투", "spec": "w1200×150m×0.12t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "[SUS] 350 ±50", "ja_avg": "356.8", "je_spec": "", "je_avg": "", "usage": "GUIDE RAIL 1.2T 용도 ( Φ230 / Φ120 / Φ160 / 730×4×1.45t / 800×3×1.45t / 800×5×1.45t / 980×5×1.45t / 900×5×1.45t / 1000×4×1.45t / 1010×5×1.45t )\n  말타니-스폰지타발 ( 580×10×5t / 800×10×5t / 880×10×5t )", "note": ""}, {"no": "35", "supplier": "대령산업㈜", "contact_name": "황명수 사장님", "contact_phone": "010-2226-7643", "product": "NO.59402", "spec": "w500×100m×0.025t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "26.27", "usage": "", "note": ""}, {"no": "36", "supplier": "대령산업㈜", "contact_name": "황명수 사장님", "contact_phone": "010-2226-7643", "product": "NO 5000NS", "spec": "w1200×50m×0.16t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "10N 이상", "je_avg": "SIDE 1 : 17.13\nSIDE 2 : 17.44", "usage": "", "note": ""}, {"no": "37", "supplier": "서보화학", "contact_name": "여용수 이사님", "contact_phone": "010-2545-9557", "product": "5413K (60mic)", "spec": "w500×33m", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "612", "usage": "", "note": "업체 성적서 결과 값 24 N/100㎜ \n단위 환산 = 612 gf/25mm"}, {"no": "38", "supplier": "서보화학", "contact_name": "여용수 이사님", "contact_phone": "010-2545-9557", "product": "9495MP", "spec": "w1372×54m×0.14t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "2932", "usage": "팬텀 가이드레일 670×4×0.15t / 아진전자 Φ6×Φ12", "note": "업체 성적서 결과 값 11.5 N/㎝ \n단위 환산 = 2,932 gf/25mm"}, {"no": "39", "supplier": "서보화학", "contact_name": "여용수 이사님", "contact_phone": "010-2545-9557", "product": "467MP", "spec": "w100×55m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "2450", "usage": "뉴커런트", "note": "업체 성적서 결과 값 9.6 N/㎝\n단위 환산 = 2,450 gf/25mm"}, {"no": "40", "supplier": "서보화학", "contact_name": "여용수 이사님", "contact_phone": "010-2545-9557", "product": "9495LE", "spec": "w1372×55m×0.16t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "1683", "usage": "GUIDE RAIL 1020×5×1.15t / 820×5×1.15t / 730×4×1.15t / 800×3×1.15t / 800×4×1.15t", "note": "업체 성적서 결과 값 6.6 N/㎝\n단위 환산 = 1,683 gf/25mm"}, {"no": "41", "supplier": "이룸", "contact_name": "이승호 사장님", "contact_phone": "010-4078-1790", "product": "3M 4914", "spec": "w1200×33m×0.25t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "5863", "usage": "GUIDE RAIL Φ230 / Φ120 / Φ160 / 730×4×1.45t / 800×5×1.45t / 800×3×1.45t / 880×5×1.45t / 900×5×1.45t / 1000×4×1.45t / 1010×5×1.45t / 790×4×1.25t / 771×4×1.25t", "note": "< 90° Peel Adhesion N/㎝ >\n업체 성적서 결과 값 23 N/㎝ \n단위 환산 = 5,863 gf/25mm"}, {"no": "42", "supplier": "이룸", "contact_name": "이승호 사장님", "contact_phone": "010-4078-1790", "product": "77010(VOC)", "spec": "w1200×70m×0.1t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "77010-10 : 1,083\n77010-15 : 1,476", "usage": "멤브레인_싱싱캔 Φ6×Φ10×0.25t", "note": "업체 성적서 결과 값 \n(77010-10 : 1.1 kg/in), (77010-15 : 1.5 kg/in)"}, {"no": "43", "supplier": "이룸", "contact_name": "이승호 사장님", "contact_phone": "010-4078-1790", "product": "3M 9448HK", "spec": "w1200×50m×0.16t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "FABRIC TAPE A", "note": ""}, {"no": "44", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YT-156LA", "spec": "w1000×60m×0.11t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "실리콘 : 800 이상\n아크릴 : 1,200이상", "je_avg": "실리콘 : 989\n아크릴 : 1,597", "usage": "", "note": ""}, {"no": "45", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YT-156T", "spec": "w1000×100m×0.07t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "아크릴 : 600이상\n실리콘 : 1000 이상", "je_avg": "", "usage": "", "note": ""}, {"no": "46", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YT-152G", "spec": "w1000×50m×0.08t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "870 ±150", "je_avg": "909", "usage": "", "note": ""}, {"no": "47", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YF-155BS(46)", "spec": "w1000×100m×0.04t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "", "note": "단종"}, {"no": "48", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YF-130AS", "spec": "w500×33m×0.065t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "560~770", "je_avg": "655", "usage": "", "note": ""}, {"no": "49", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YF-5300DBT(#50)", "spec": "w1000×50m×0.05t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "700 이상", "je_avg": "PET : 1,909\nC P : 1,460", "usage": "VENT PROTECTING FILM_상신EDP", "note": ""}, {"no": "50", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YT-150BT", "spec": "w1000×50m×0.075t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "960~1,440", "je_avg": "1193", "usage": "릴타입 글루테이프_알피이 6×12/8×14", "note": ""}, {"no": "51", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "TESA#4965", "spec": "w1372×50m×0.2t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "코팅면 : 3,416\n개방면 : 3,289", "usage": "SHEET WHITE / BUSH SUB / BUSH ROTATION / BUSH RING GUIDE (23×29x0.6t, 28.2×4.4x0.6t)", "note": "업체 성적서 결과 값 코팅면 : 13.4 N/㎝ 개방면 : 12.9 N/㎝\n단위 환산 = 코팅면 : 3,416 gf/25mm 개방면 : 3,289 gf/25mm"}, {"no": "52", "supplier": "㈜영우화인텍", "contact_name": "장용석 대리님", "contact_phone": "010-6438-9661", "product": "YT-155C 브라운", "spec": "w1000×100m×0.037t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "500 ±100", "je_avg": "509", "usage": "VENT PATCH-AMS", "note": ""}, {"no": "53", "supplier": "영우", "contact_name": "이형우 대리님", "contact_phone": "010-8835-8466", "product": "YT-7613M", "spec": "w1000×100m×0.13t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "투명: 1200±360\n화이트: 1500±450", "je_avg": "투명: 1425.4\n화이트: 1806.2", "usage": "VENT PATCH (Φ5.5×Φ9) / (Φ5.5×Φ10) / (Φ3.3×Φ7.6) / (Φ2.5×Φ8) / (Φ3×Φ7) / (Φ2×Φ10) / (Φ2×Φ8) / (Φ8×Φ14) / (Φ15×Φ20) / (Φ4×Φ8) / (Φ75×Φ25) / (Φ4×Φ7) / AMS", "note": ""}, {"no": "54", "supplier": "㈜용비통상", "contact_name": "이원희 차장님", "contact_phone": "010-9934-5175", "product": "V12RC500", "spec": "w508×152m×0.15t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "싱싱캔 멤브레인 Φ6×Φ10×0.25t", "note": ""}, {"no": "55", "supplier": "㈜용비통상", "contact_name": "이원희 차장님", "contact_phone": "010-9934-5175", "product": "V50TNW500", "spec": "w254×152m×0.15t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "EZI FILTER Φ6.55×0.15t / Φ4.1×0.15t / Φ2.3×0.15t", "note": ""}, {"no": "56", "supplier": "㈜상아프론테크", "contact_name": "박종훈 책임님", "contact_phone": "010-4801-1937", "product": "PTFE SHEET", "spec": "w635×240m×0.57t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "코팅처리품( 테프론0.57t) → 1. BUSH SUB / 2. BUSH ROTATION", "note": ""}, {"no": "57", "supplier": "㈜상아프론테크", "contact_name": "박종훈 책임님", "contact_phone": "010-4801-1937", "product": "싱싱캔 멤브레인", "spec": "w110×200m×0.3t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "아진전자 (Φ6×Φ12)", "note": ""}, {"no": "58", "supplier": "한영", "contact_name": "황성준 과장님", "contact_phone": "010-3262-8133", "product": "J 470", "spec": "w504×1500m×0.188t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "PCB PAD, INSULATE PAPER-E,F,G", "note": ""}, {"no": "59", "supplier": "SJ폼웍스", "contact_name": "문혜린 책임연구원", "contact_phone": "010-8820-9308", "product": "SJ UHF-10R", "spec": "w500×100m×1.0t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "팬텀 가이드레일", "note": ""}, {"no": "60", "supplier": "무진상사", "contact_name": "권남표 부장님", "contact_phone": "010-3063-5564", "product": "3M 96042", "spec": "w1219.1×54.8m", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "3M 96042 (기존품) → YT-7613M (변경품)", "note": ""}, {"no": "61", "supplier": "남양부직포", "contact_name": "권남표 부장님", "contact_phone": "010-3063-5564", "product": "PET70(SPB)블랙", "spec": "w1020×500m", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "FABRIC TAPE A", "note": ""}, {"no": "61", "supplier": "디에스 실리콘", "contact_name": "김상문 이사님", "contact_phone": "010-8984-3247", "product": "SH5170U (투명)", "spec": "w100×L×1.0t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "JIG COAT HOLES   Φ22*Φ13.2*1t", "note": ""}, {"no": "61", "supplier": "디에스 실리콘", "contact_name": "김상문 이사님", "contact_phone": "010-8984-3247", "product": "SH5170U (불투명)", "spec": "w100×L×1.0t", "price": "", "sqm_price": "", "iy_spec": "", "iy_avg": "", "ja_spec": "", "ja_avg": "", "je_spec": "", "je_avg": "", "usage": "JIG BEAD HOLES   Φ22*Φ12.4*1t", "note": ""}];
+const km={price:'sqm_price',iy:'iy_avg',ja:'ja_avg',je:'je_avg'};
+let sorts=[];
+function pn(v){if(!v)return null;const m=v.toString().replace(/,/g,'').match(/[\d.]+/);return m?parseFloat(m[0]):null;}
+function fp(v){const n=pn(v);return n?n.toLocaleString('ko-KR')+'원':'';}
+function calcSqm(spec,price){
+  if(!spec||!price)return null;
+  const nums=spec.replace(/,/g,'').match(/[\d.]+/g);
+  if(!nums||nums.length<2)return null;
+  const w=parseFloat(nums[0])/1000;
+  const l=parseFloat(nums[1]);
+  const sqm=w*l;
+  if(sqm<=0)return null;
+  return Math.round(parseFloat(price)/sqm);
+}
+function toggleSort(el){
+  const field=el.getAttribute('data-field');
+  if(field==='none'){
+    sorts=[];
+    document.querySelectorAll('.sb[data-field]').forEach(b=>{
+      b.classList.remove('active');
+      if(b.getAttribute('data-field')!=='none'){b.setAttribute('data-dir','');b.textContent=b.getAttribute('data-label');}
+    });
+    el.classList.add('active');
+    render();return;
+  }
+  document.querySelector('[data-field="none"]').classList.remove('active');
+  const cur=el.getAttribute('data-dir');
+  const label=el.getAttribute('data-label');
+  const idx=sorts.findIndex(s=>s.startsWith(field+'_'));
+  if(idx>=0) sorts.splice(idx,1);
+  let newDir=cur===''?'asc':cur==='asc'?'desc':'';
+  if(newDir){
+    sorts.push(field+'_'+newDir);
+    el.setAttribute('data-dir',newDir);
+    el.textContent=label+' '+(newDir==='asc'?'↑':'↓');
+    el.classList.add('active');
+  } else {
+    el.setAttribute('data-dir','');
+    el.textContent=label;
+    el.classList.remove('active');
+  }
+  if(!sorts.length) document.querySelector('[data-field="none"]').classList.add('active');
+  render();
+}
+function init(){
+  const sups=[...new Set(allData.map(d=>d.supplier).filter(s=>s))].sort();
+  const sel=document.getElementById('sf');
+  sups.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
+}
+function render(){
+  const q=document.getElementById('si').value.trim().toLowerCase();
+  const qu=document.getElementById('su').value.trim().toLowerCase();
+  const sup=document.getElementById('sf').value;
+  let f=allData.filter(d=>{
+    const ms=!sup||d.supplier===sup;
+    const mq=!q||[d.product,d.spec,d.supplier].some(v=>v&&v.toLowerCase().includes(q));
+    const mu=!qu||(d.usage&&d.usage.toLowerCase().includes(qu));
+    return ms&&mq&&mu;
+  });
+  if(sorts.length){
+    const firstParts=sorts[0].split('_');firstParts.pop();const firstKey=km[firstParts.join('_')];
+    f=f.filter(d=>pn(d[firstKey])!==null);
+    const lastSort=sorts[sorts.length-1];const lp=lastSort.split('_');const ldir=lp.pop();const lkey=km[lp.join('_')];
+    f=[...f].sort((a,b)=>{const av=pn(a[lkey]),bv=pn(b[lkey]);return ldir==='asc'?av-bv:bv-av;});
+  }
+  document.getElementById('stats').textContent=`총 ${allData.length}개 중 ${f.length}개 표시`;
+  const list=document.getElementById('list');
+  if(!f.length){list.innerHTML='<div class="nr">검색 결과가 없습니다.</div>';return;}
+  list.innerHTML=f.map(d=>{
+    const tags=[];if(d.iy_spec)tags.push('이형력');if(d.ja_spec)tags.push('점착력');if(d.je_spec)tags.push('접착력');
+    const ps=fp(d.price);const idx=allData.indexOf(d);
+    const sqm=calcSqm(d.spec,d.price);const sqms=sqm?sqm.toLocaleString('ko-KR')+'원/㎡':'';
+    return '<div class="card" onclick="openM('+idx+')">'
+      +'<div class="ch"><span class="cno">No.'+d.no+'</span><span class="cp">'+(d.product||'-')+'</span></div>'
+      +'<div class="csup">'+(d.supplier||'')+'</div>'
+      +(d.spec?'<div class="cspec">'+d.spec+'</div>':'')
+      +(sqms?'<div style="font-size:14px;color:#888;margin-top:3px">'+sqms+'</div>':'')
+      +((d.iy_spec||d.iy_avg||d.ja_spec||d.ja_avg||d.je_spec||d.je_avg)?
+        '<div class="ctbl"><table style="font-size:13px;border-collapse:collapse;width:auto">'
+        +'<tr style="background:#f0f4ff"><th style="padding:4px 10px;text-align:left;color:#1a56db;font-weight:600;border:1px solid #dde5ff">항목</th><th style="padding:4px 10px;text-align:center;color:#1a56db;font-weight:600;border:1px solid #dde5ff">SPEC</th><th style="padding:4px 10px;text-align:center;color:#1a56db;font-weight:600;border:1px solid #dde5ff">실측</th></tr>'
+        +(d.iy_spec||d.iy_avg?'<tr><td style="padding:4px 10px;border:1px solid #eee;white-space:nowrap">이형력</td><td style="padding:4px 10px;text-align:center;border:1px solid #eee;white-space:nowrap">'+(d.iy_spec||'-')+'</td><td style="padding:4px 10px;text-align:center;border:1px solid #eee;white-space:nowrap">'+(d.iy_avg||'-')+'</td></tr>':'')
+        +(d.ja_spec||d.ja_avg?'<tr style="background:#fafafa"><td style="padding:4px 10px;border:1px solid #eee;white-space:nowrap">점착력</td><td style="padding:4px 10px;text-align:center;border:1px solid #eee;white-space:nowrap">'+(d.ja_spec||'-')+'</td><td style="padding:4px 10px;text-align:center;border:1px solid #eee;white-space:nowrap">'+(d.ja_avg||'-')+'</td></tr>':'')
+        +(d.je_spec||d.je_avg?'<tr><td style="padding:4px 10px;border:1px solid #eee;white-space:nowrap">접착력</td><td style="padding:4px 10px;text-align:center;border:1px solid #eee;white-space:nowrap">'+(d.je_spec||'-')+'</td><td style="padding:4px 10px;text-align:center;border:1px solid #eee;white-space:nowrap">'+(d.je_avg||'-')+'</td></tr>':'')
+        +'</table></div>':'')
+      +'</div>';
+  }).join('');
+}
+function openM(idx){
+  const d=allData[idx];const hf=d.iy_spec||d.iy_avg||d.ja_spec||d.ja_avg||d.je_spec||d.je_avg;const ps=fp(d.price);
+  const sqm=calcSqm(d.spec,d.price);const sqms=sqm?sqm.toLocaleString('ko-KR')+'원/㎡':'';
+  document.getElementById('mc').innerHTML=''
+    +'<h2>'+(d.product||'-')+'</h2>'
+    +'<table class="it">'
+    +'<tr><td>No.</td><td>'+d.no+'</td></tr>'
+    +'<tr><td>구입처</td><td>'+(d.supplier||'-')+'</td></tr>'
+    +'<tr><td>담당자</td><td>'+(d.contact_name||'-')+'</td></tr>'
+    +'<tr><td>연락처</td><td>'+(d.contact_phone?'<a class="pl" href="tel:'+d.contact_phone+'">'+d.contact_phone+'</a>':'-')+'</td></tr>'
+    +(d.spec?'<tr><td>규격</td><td>'+d.spec+'</td></tr>':'')
+    +(ps?'<tr><td>가격</td><td><span style="font-weight:700;color:#e53e3e">'+ps+'</span></td></tr>':'')
+    +(sqms?'<tr><td>㎡단가</td><td><span style="font-weight:700;color:#e53e3e">'+sqms+'</span></td></tr>':'')
+    +(d.usage?'<tr><td>사용용도</td><td>'+d.usage+'</td></tr>':'')
+    +(d.note?'<tr><td>비고</td><td>'+d.note+'</td></tr>':'')
+    +'</table>'
+    +(hf?'<div class="stitle">물성 데이터 (g.f)</div><table class="ft"><tr><th>항목</th><th>SPEC</th><th>실측(AVG)</th></tr>'+(d.iy_spec||d.iy_avg?'<tr><td>이형력</td><td>'+(d.iy_spec||'-')+'</td><td>'+(d.iy_avg||'-')+'</td></tr>':'')+(d.ja_spec||d.ja_avg?'<tr><td>점착력</td><td>'+(d.ja_spec||'-')+'</td><td>'+(d.ja_avg||'-')+'</td></tr>':'')+(d.je_spec||d.je_avg?'<tr><td>접착력</td><td>'+(d.je_spec||'-')+'</td><td>'+(d.je_avg||'-')+'</td></tr>':'')+'</table>':'');
+  document.getElementById('ov').classList.add('open');
+}
+function closeOv(e){if(e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('open');}
+init();render();
+</script>
+</body>
+</html>
